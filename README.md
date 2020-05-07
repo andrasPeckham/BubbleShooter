@@ -1,2 +1,2 @@
-# BubblePopper
-Bubble popper browser game
+# BubbleShooter
+Bubble shooter browser game
