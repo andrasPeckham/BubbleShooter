@@ -420,25 +420,26 @@
 
         for (let i = 1; i < rowNum-1; i++){
             for (let j = 0; j < colNum; j++){
-                let topIsEmpty = (matrix[i+1][j] == 0);
-                let bottomIsEmpty = (matrix[i-1][j] == 0);
-                let rightIsEmpty = (matrix[i][j+1] == 0);
-                let leftIsEmpty = (matrix[i][j-1] == 0);
+                if(matrix[i][j] != 0){
+                    let topIsEmpty = (matrix[i+1][j] == 0);
+                    let bottomIsEmpty = (matrix[i-1][j] == 0);
+                    let rightIsEmpty = (matrix[i][j+1] == 0);
+                    let leftIsEmpty = (matrix[i][j-1] == 0);
 
-                if (j == 0){
-                    if(topIsEmpty && bottomIsEmpty && rightIsEmpty){
-                        notAttached.push([i, j]);
-                    }
-                } else if(j == colNum){
-                    if(topIsEmpty && bottomIsEmpty && leftIsEmpty){
-                        notAttached.push([i, j]);
-                    }
-                } else{
-                    if(topIsEmpty && bottomIsEmpty && leftIsEmpty && rightIsEmpty){
-                        notAttached.push([i, j]);
+                    if (j == 0){
+                        if(topIsEmpty && bottomIsEmpty && rightIsEmpty){
+                            notAttached.push([i, j]);
+                        }
+                    } else if(j == colNum){
+                        if(topIsEmpty && bottomIsEmpty && leftIsEmpty){
+                            notAttached.push([i, j]);
+                        }
+                    } else{
+                        if(topIsEmpty && bottomIsEmpty && leftIsEmpty && rightIsEmpty){
+                            notAttached.push([i, j]);
+                        }
                     }
                 }
-
             }
         }
         points += notAttached.length;
@@ -526,6 +527,14 @@
             lbText.appendChild(lbName);
             lbText.appendChild(lbPoints);
             leaderboard.appendChild(lbText);
+
+            let fs = require('fs');
+            let data = "Learning how to write in a file."
+            fs.writeFile('Output.txt', data, (err) => {
+
+                // In case of a error throw err.
+                if (err) throw err;
+            })
 
             modal.style.display = "none";
             saturday_night.play();
