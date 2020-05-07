@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html" id="html">
+<head>
+    <meta charset="UTF-8">
+    <title>Bubble Shooter</title>
+</head>
+
+<body>
+<div id="myModal" class="modal">
+
+    <div class="modal-content" id="modalContent">
+        <label class="nameLabel"> Please type in your name for the scoreboard: </label>
+        <input class="nameInput" type="text" id="nameInput"><br>
+        <button class="okButton" type="button" onclick="addToScoreBoard()">Ok</button>
+    </div>
+
+</div>
+
+<div class="grid">
+    <img id="gif" src="images/discoball.gif">
+
+    <div class="canvases">
+        <canvas class="gameCanvas" id="canvas" height="600" width="600"></canvas>
+        <canvas class="ballsCanvas" id="balls" height="30" width="600" ></canvas>
+        <p class="currentPoints" id="currentPoints"></p>
+    </div>
+
+    <img id="gif2" src="images/discoball.gif">
+
+    <div class="leaderboard" id="leaderboard">
+        <div class="leaderboardText" style="border: 1px solid">
+            <div class="leaderboardName">
+                <p class="line"> NAME </p>
+            </div>
+            <div class="leaderboardPoints">
+                <p class="line"> SCORE </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<p id="matrix"></p>
+<script>
+    let html = document.getElementById("html");
+    let modal = document.getElementById("myModal");
+    let leaderboard = document.getElementById("leaderboard");
+
+    let canvas = document.getElementById("canvas");
+    let ctx = canvas.getContext("2d");
+    let ballsCanvas = document.getElementById("balls");
+    let ballsCtx = ballsCanvas.getContext("2d");
+
+    let saturday_night = new sound("sounds/saturday_night.mp3");
+    saturday_night.volume(0.3);
+    let pop = new sound("sounds/pop.mp3");
+    let metal = new sound("sounds/metal.mp3");
+    let fire = new sound("sounds/fire.mp3");
+    let giggle = new sound("sounds/giggle.mp3");
+    let playMusic = false;
+
+
+    let blue = new Image();
+    blue.src = "images/blue.png";
+    let red = new Image();
+    red.src = "images/red.png";
+    let green = new Image();
+    green.src = "images/green.png";
+    let yellow = new Image();
+    yellow.src = "images/orange.png";
+    let gray = new Image();
+    gray.src = "images/black.png";
+
+    let gif = document.getElementById("gif");
+    gif.style.display = "none";
+    let gif2 = document.getElementById("gif2");
+    gif2.style.display = "none";
+
+    document.addEventListener('mousemove', getMouseCoordinates);
+    document.addEventListener('mouseup', getClickCoordinates);
+
+    let mouseX = 0;
+    let mouseY = 0;
+
+    let clickX;
+    let clickY;
+
+    let ballSize = 30;
+    let ballStartX = 300;
+    let ballStartY = 600;
+    let prevBallPosX;
+    let prevBallPosY;
+    let ballMovementLength = 7;
+    let ballAtStartingPosition = false;
+
+    let matrix;
+    let rowNum = 600 / ballSize;
+    let colNum = 600 / ballSize;
+    let rowsToDraw = rowNum / 2 + 2;
+
+    let ammo = [];
+    let ammoCount = 3;
+    let getAmmo = false;
+    let nextAmmo;
+
+    let ballShot = false;
+    let shootingCurrently = false;
+
+    let toDestroy;
+
+    let trajectoryXY = [];
+    let steepness;
+
+    let points = 0;
+    let gameOverTriggered = false;
+
+    setupMatrix();
+    addAmmo(ammoCount);
+
+    setInterval("mainEvent()",10);
+
+    function mainEvent(){
+        ctx.clearRect(0, 0, 600, 600);
+        ctx.beginPath();
+
+        drawBallMatrix();
+        drawAmmoBalls();
+        drawMouseCrosshairs();
+        drawMouseAimGuide();
+        showCurrentPoints();
+        checkGameOver();
+
+        if(ballShot){
+            if(getAmmo){
+                nextAmmo = getNextAmmo();
+                getAmmo = false;
+            }
+            shootBallTowardsClick(nextAmmo, clickX, clickY);
+        }
+    }
+
+    function shootBallTowardsClick(nextAmmo, clickX, clickY) {
+        if(ballAtStartingPosition){
+            trajectoryXY = calculateTrajectory(ballStartX, ballStartY, clickX, clickY);
+            steepness = 600 - trajectoryXY[1];
+            prevBallPosX = ballStartX;
+            prevBallPosY = ballStartY;
+            ballAtStartingPosition = false;
+        }
+
+        let ballXIsAtWall = (Math.abs(trajectoryXY[0] - prevBallPosX) <= ballMovementLength);
+        if(ballXIsAtWall){
+            trajectoryXY[0] = (trajectoryXY[0] == 0) ? (600 - ballSize/2) : 0;
+            trajectoryXY[1] = trajectoryXY[1] - steepness;
+        }
+
+        let nextXY = calculateNextPos(ballMovementLength, trajectoryXY[0], trajectoryXY[1], prevBallPosX, prevBallPosY);
+
+        let nextAmmoBall = nextAmmo;
+        if(nextAmmoBall != null){
+            if(!checkBallTouchingMatrix(nextAmmoBall, nextXY)){
+                ctx.drawImage(nextAmmo, nextXY[0] - ballSize/2, nextXY[1] + ballSize/2, ballSize, ballSize);
+                prevBallPosX = nextXY[0];
+                prevBallPosY = nextXY[1];
+            } else {
+                ballShot = false;
+            }
+        } else {
+            shootingCurrently = false;
+        }
+    }
+
+    function getClickCoordinates(evt) {
+        if(!gameOverTriggered){
+            if(!playMusic){
+                saturday_night.play();
+                saturday_night.loop = true;
+                playMusic = true;
+                gif.style.display = "block";
+                gif2.style.display = "block";
+                gif.setAttribute("style", "vertical-align: top");
+                gif2.setAttribute("style", "vertical-align: top");
+            }
+            if(!shootingCurrently){
+                shootingCurrently = true;
+                clickX = evt.clientX;
+                clickY = evt.clientY;
+                ballShot = true;
+                ballAtStartingPosition = true;
+                getAmmo = true;
+            }
+        }
+    }
+
+    function getMouseCoordinates(evt){
+        mouseX = evt.clientX;
+        mouseY = evt.clientY;
+    }
+
+    function drawMouseCrosshairs() {
+        let size = 10;
+        ctx.moveTo(mouseX - size, mouseY);
+        ctx.lineTo(mouseX + size, mouseY);
+        ctx.moveTo(mouseX, mouseY - size);
+        ctx.lineTo(mouseX, mouseY + size);
+        ctx.stroke();
+    }
+
+    function drawMouseAimGuide(){
+        let radius = 100;
+        let XYonRadius = calculateNextPos(radius, mouseX, mouseY, ballStartX, ballStartY);
+
+        ctx.moveTo(ballStartX, ballStartY);
+        ctx.lineTo(XYonRadius[0], XYonRadius[1]);
+        ctx.stroke();
+    }
+
+    function calculateTrajectory(fromX, fromY, clickX, clickY){
+        let toX = (clickX < fromX) ? 0 : (600 - ballSize/2);
+        let toY = ((clickY - fromY) * toX + (clickX - fromX) * fromY - (clickY - fromY) * fromX) / (clickX - fromX);
+        let toXY = [toX, toY];
+
+        return toXY;
+    }
+
+    function calculateNextPos(moveLength, toX, toY, fromX, fromY) {
+        let lengthFromBaseToTip = Math.sqrt(Math.pow((fromX - toX), 2) + Math.pow((fromY - toY), 2));
+        let xOnRadius = (moveLength * toX + (lengthFromBaseToTip - moveLength) * fromX) / lengthFromBaseToTip;
+        let yOnRadius = (moveLength * toY + (lengthFromBaseToTip - moveLength) * fromY) / lengthFromBaseToTip
+        let XY = [xOnRadius, yOnRadius];
+
+        return XY;
+    }
+
+    function setupMatrix() {
+        matrix = [];
+
+        for (let i = 0; i < rowNum; i++){
+            let row = [];
+            for (let j = 0; j < colNum; j++){
+                if(i < rowsToDraw){
+                    let random = randomInt(1, 5);
+                    switch (random){
+                        case 1:
+                            row.push(blue);
+                            break;
+                        case 2:
+                            row.push(red);
+                            break;
+                        case 3:
+                            row.push(green);
+                            break;
+                        case 4:
+                            row.push(yellow);
+                            break;
+                    }
+                } else {
+                    row.push(0);
+                }
+            }
+            matrix.push(row);
+        }
+        gameOverTriggered = false;
+        html.style.cursor = "none";
+    }
+
+    function drawBallMatrix() {
+        let y = 0;
+        for (let i = 0; i < rowNum; i++){
+            let x = 0;
+            for (let j = 0; j < colNum; j++){
+                if(matrix[i][j] != 0){
+                    ctx.drawImage(matrix[i][j], x, y, ballSize, ballSize);
+                }
+                x += ballSize;
+            }
+            y += ballSize;
+        }
+    }
+
+    function randomInt(min, max) {
+        return min + Math.floor((max - min) * Math.random());
+    }
+
+    function drawAmmoBalls(){
+        ballsCtx.clearRect(0, 0, 600, 30);
+        ballsCtx.fillStyle = 'lightgray';
+        ballsCtx.fillRect(300, 0, 300, 30);
+        ballsCtx.beginPath();
+
+        let x = 300;
+        for(let i = 0; i < ammo.length; i++){
+            x -= ballSize;
+            ballsCtx.drawImage(ammo[i], x, 0, ballSize, ballSize);
+        }
+    }
+
+    function addAmmo(howMany){
+        for(let i = 0; i < howMany; i++){
+            let random = randomInt(1, 5);
+            switch (random) {
+                case 1:
+                    ammo.push(blue);
+                    break;
+                case 2:
+                    ammo.push(red);
+                    break;
+                case 3:
+                    ammo.push(green);
+                    break;
+                case 4:
+                    ammo.push(yellow);
+                    break;
+            }
+        }
+    }
+
+    function getNextAmmo(){
+        if(ammo.length){
+            pop.play();
+            let nextAmmo = ammo.shift();
+            return nextAmmo;
+        }else{
+            shiftMatrixDown();
+            addAmmo(ammoCount);
+        }
+    }
+
+    function shiftMatrixDown(){
+        for(let i = rowNum-1; i >= 0; i--){
+            for(let j = 0; j < colNum; j++){
+                let random = randomInt(1, 5);
+                if (i != 0) {
+                    matrix[i][j] = matrix[i-1][j];
+                } else {
+                    switch (random) {
+                        case 1:
+                            matrix[i][j] = blue;
+                            break;
+                        case 2:
+                            matrix[i][j] = red;
+                            break;
+                        case 3:
+                            matrix[i][j] = green;
+                            break;
+                        case 4:
+                            matrix[i][j] = yellow;
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    function checkBallTouchingMatrix(ball, nextXY) {
+        let prevCellI = Math.floor(prevBallPosY / ballSize);
+        let prevCellJ = Math.floor(prevBallPosX / ballSize);
+
+        if(nextXY[1] <= 0){
+            shootingCurrently = false;
+            matrix[0][prevCellJ] = ball;
+            toDestroy = [];
+            findSameColor(ball, prevCellJ, 0);
+            makeSameColorBlack();
+            return true;
+        }
+
+        let nextCellI = Math.floor(nextXY[1] / ballSize);
+        let nextCellJ = Math.floor(nextXY[0] / ballSize);
+        let nextCellEmpty = (matrix[nextCellI][nextCellJ] == 0);
+
+        if(!nextCellEmpty){
+            shootingCurrently = false;
+            matrix[prevCellI][prevCellJ] = ball;
+            toDestroy = [];
+            findSameColor(ball, prevCellI, prevCellJ);
+            makeSameColorBlack();
+            return true;
+        }
+        return false;
+    }
+
+    function findSameColor(ball, i, j){
+        if(matrix[i][j] == ball){
+            toDestroy.push([i, j]);
+            if(i != 0){
+                if(!isInDestroyList( i-1, j)){
+                    findSameColor(ball, i-1, j);
+                }
+            }
+            if(i != rowNum-1){
+                if(!isInDestroyList(i+1, j)){
+                    findSameColor(ball, i+1, j);
+                }
+            }
+            if(j != 0){
+                if(!isInDestroyList(i, j-1)){
+                    findSameColor(ball, i, j-1);
+                }
+            }
+            if(j != colNum-1){
+                if(!isInDestroyList(i, j+1)){
+                    findSameColor(ball, i, j+1);
+                }
+            }
+        }
+    }
+
+    function isInDestroyList(checkI, checkJ){
+        for(let i = 0; i < toDestroy.length; i++){
+            if(toDestroy[i][0] == checkI && toDestroy[i][1] == checkJ){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function findNotAttachedAndDelete() {
+        let notAttached = [];
+
+        for (let i = 1; i < rowNum-1; i++){
+            for (let j = 0; j < colNum; j++){
+                let topIsEmpty = (matrix[i+1][j] == 0);
+                let bottomIsEmpty = (matrix[i-1][j] == 0);
+                let rightIsEmpty = (matrix[i][j+1] == 0);
+                let leftIsEmpty = (matrix[i][j-1] == 0);
+
+                if (j == 0){
+                    if(topIsEmpty && bottomIsEmpty && rightIsEmpty){
+                        notAttached.push([i, j]);
+                    }
+                } else if(j == colNum){
+                    if(topIsEmpty && bottomIsEmpty && leftIsEmpty){
+                        notAttached.push([i, j]);
+                    }
+                } else{
+                    if(topIsEmpty && bottomIsEmpty && leftIsEmpty && rightIsEmpty){
+                        notAttached.push([i, j]);
+                    }
+                }
+
+            }
+        }
+        points += notAttached.length;
+        for(let i = 0; i < notAttached.length; i++){
+            let iCoord = notAttached[i][0];
+            let jCoord = notAttached[i][1];
+            matrix[iCoord][jCoord] = 0;
+        }
+    }
+
+    function makeSameColorBlack(){
+        if(toDestroy.length > 2){
+            points += toDestroy.length * toDestroy.length;
+            if (toDestroy.length > 10){
+                addAmmo(2);
+            } else {
+                addAmmo(1);
+            }
+            for(let i = 0; i < toDestroy.length; i++){
+                let iCoord = toDestroy[i][0];
+                let jCoord = toDestroy[i][1];
+                matrix[iCoord][jCoord] = gray;
+            }
+            metal.play();
+            setTimeout(deleteSameColor, 300);
+        }
+    }
+
+    function deleteSameColor(){
+        if(toDestroy.length > 2){
+            for(let i = 0; i < toDestroy.length; i++){
+                let iCoord = toDestroy[i][0];
+                let jCoord = toDestroy[i][1];
+                matrix[iCoord][jCoord] = 0;
+            }
+            fire.play();
+        }
+        findNotAttachedAndDelete();
+    }
+
+    function checkGameOver(){
+        if(gameOverTriggered == false){
+            for(let i = 0; i < colNum; i ++){
+                if (matrix[rowNum-1][i] != 0){
+                    gameOverTriggered = true;
+                    saturday_night.stop();
+                    giggle.play();
+                    saturday_night = new sound("sounds/saturday_night.mp3");
+                    saturday_night.volume(0.3);
+                    modal.style.display = "block";
+                    html.style.cursor = "auto";
+                }
+            }
+        }
+    }
+
+    function addToScoreBoard(){
+        let nameInputValue = document.getElementById("nameInput").value;
+
+        if(document.getElementById("error") != null){
+            let olderr = document.getElementById("error");
+            olderr.parentNode.removeChild(olderr);
+        }
+
+        if(nameInputValue != ""){
+            let lbText = document.createElement("div");
+            lbText.setAttribute("class", "leaderboardText");
+
+            let lbName = document.createElement("div");
+            lbName.setAttribute("class", "leaderboardName");
+
+            let pName = document.createElement("p");
+            pName.setAttribute("class", "line");
+            pName.innerHTML = nameInputValue;
+
+            let lbPoints = document.createElement("div");
+            lbPoints.setAttribute("class", "leaderboardName");
+            let pPoints = document.createElement("p");
+            pPoints.setAttribute("class", "line");
+
+            pPoints.innerHTML = points;
+
+            lbPoints.appendChild(pPoints);
+            lbName.appendChild(pName);
+            lbText.appendChild(lbName);
+            lbText.appendChild(lbPoints);
+            leaderboard.appendChild(lbText);
+
+            modal.style.display = "none";
+            saturday_night.play();
+            setupMatrix();
+            addAmmo(ammoCount);
+            points = 0;
+        } else {
+            let err = document.createElement("p");
+            err.innerHTML = "Sorry, the name can't be empty";
+            err.setAttribute("style", "color: red; font-size 30px");
+            err.setAttribute("id", "error");
+            let modalContent = document.getElementById("modalContent");
+            modalContent.appendChild(err);
+        }
+    }
+
+    function showCurrentPoints(){
+        let curP = document.getElementById("currentPoints");
+        curP.innerHTML = "Current Points: " + points;
+    }
+
+    function sound(src) {
+        this.sound = document.createElement("audio");
+        this.sound.src = src;
+        this.sound.setAttribute("preload", "auto");
+        this.sound.setAttribute("controls", "none");
+        this.sound.style.display = "none";
+        document.body.appendChild(this.sound);
+        this.volume = function (volume) {
+            this.sound.volume = volume;
+        }
+        this.play = function(){
+            this.sound.play();
+        }
+        this.stop = function(){
+            this.sound.pause();
+        }
+    }
+</script>
+
+</body>
+
+<style>
+    html {
+        display: table;
+        margin: auto;
+        cursor: none;
+    }
+    body {
+        display: table-cell;
+        vertical-align: middle;
+    }
+    .grid{
+        display: inline-block;
+    }
+    .canvases{
+        display: inline-grid;
+        font-size: 30px;
+    }
+    .gameCanvas{
+        border: 1px solid;
+    }
+    .ballsCanvas{
+        border: 1px solid;
+        border-top: 0px;
+    }
+    .leaderboard{
+        display: inline-grid;
+        vertical-align: top;
+        background-color: cadetblue;
+        border: 1px solid;
+    }
+    .leaderboardText{
+        display: inline-block;
+        font-size: 20px;
+    }
+    .line{
+        display: contents;
+    }
+    .currentPoints{
+        display: flex;
+        justify-content: center;
+    }
+    .leaderboardName{
+        display: inline-grid;
+        padding: 10px;
+    }
+    .leaderboardPoints{
+        display: inline-grid;
+        padding: 10px;
+        padding-left: 0px;
+    }
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1;
+        padding-top: 100px;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgb(0,0,0);
+        background-color: rgba(0,0,0,0.4);
+    }
+
+    .modal-content {
+        background-color: #fefefe;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+    }
+    .nameInput{
+        font-size: 30px;
+    }
+    .nameLabel{
+        font-size: 30px;
+    }
+    .okButton{
+        font-size: 30px;
+    }
+
+</style>
+
+</html>
