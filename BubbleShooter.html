@@ -528,14 +528,6 @@
             lbText.appendChild(lbPoints);
             leaderboard.appendChild(lbText);
 
-            let fs = require('fs');
-            let data = "Learning how to write in a file."
-            fs.writeFile('Output.txt', data, (err) => {
-
-                // In case of a error throw err.
-                if (err) throw err;
-            })
-
             modal.style.display = "none";
             saturday_night.play();
             setupMatrix();
